@@ -7,6 +7,7 @@ const qrcode = require('qrcode-terminal');
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const User = require('./models/user');
 const Ticket = require('./models/ticket');
+const adminRoutes = require('./routes/admin');
 
 const app = express();
 app.use(bodyParser.json());
@@ -53,9 +54,9 @@ client.initialize();
 
 // Ruta de registro de usuario
 app.post('/register', async (req, res) => {
-  const { username, password } = req.body;
+  const { username, password, role } = req.body;
   try {
-    const user = new User({ username, password });
+    const user = new User({ username, password, role });
     await user.save();
     res.status(201).json({ message: 'Usuario creado' });
   } catch (error) {
@@ -76,7 +77,7 @@ app.post('/login', async (req, res) => {
     if (!isMatch) {
       return res.status(401).json({ error: 'Contraseña incorrecta' });
     }
-    const token = jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: '1h' });
+    const token = jwt.sign({ id: user._id, role: user.role }, JWT_SECRET, { expiresIn: '1h' });
     res.json({ token });
   } catch (error) {
     res.status(500).json({ error: 'Error en el servidor' });
@@ -95,6 +96,17 @@ const authMiddleware = (req, res, next) => {
   }
 };
 
+// Middleware para verificar si el usuario es administrador
+const adminMiddleware = (req, res, next) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Acceso denegado' });
+  }
+  next();
+};
+
+// Integrar rutas de administración
+app.use('/admin', authMiddleware, adminMiddleware, adminRoutes);
+
 // Ejemplo de ruta protegida
 app.get('/protected', authMiddleware, (req, res) => {
   res.json({ message: 'Acceso autorizado' });
@@ -103,4 +115,21 @@ app.get('/protected', authMiddleware, (req, res) => {
 // Inicia el servidor
 app.listen(3000, () => {
   console.log('Servidor escuchando en puerto 3000');
+});
+//asignar tickets automáticamente
+client.on('message', async msg => {
+  console.log('MESSAGE RECEIVED', msg);
+
+  const { from, body } = msg;
+  try {
+    // Encuentra un agente disponible
+    const agent = await User.findOne({ role: 'agent' });
+
+    // Crea el ticket y asígnalo al agente encontrado
+    const newTicket = new Ticket({ from, message: body, assignedTo: agent._id });
+    await newTicket.save();
+    console.log('Ticket creado y asignado a:', agent.username);
+  } catch (error) {
+    console.error('Error al crear el ticket:', error);
+  }
 });
