@@ -1,13 +1,13 @@
-2024/08/04-16:07:42.970 2e30 Reusing MANIFEST E:\soporte-ti\.wwebjs_auth\session\Default\IndexedDB\https_web.whatsapp.com_0.indexeddb.leveldb/MANIFEST-000001
-2024/08/04-16:07:42.970 2e30 Recovering log #93
-2024/08/04-16:07:42.987 2e30 Reusing old log E:\soporte-ti\.wwebjs_auth\session\Default\IndexedDB\https_web.whatsapp.com_0.indexeddb.leveldb/000093.log 
-2024/08/04-16:07:44.911 1358 Level-0 table #98: started
-2024/08/04-16:07:44.917 1358 Level-0 table #98: 106669 bytes OK
-2024/08/04-16:07:44.918 1358 Delete type=0 #93
-2024/08/04-16:07:44.919 1358 Manual compaction at level-0 from '\x00\x1e\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00\x1f\x00\x00\x00' @ 0 : 0; will stop at (end)
-2024/08/04-16:07:48.336 1590 Compacting 1@1 + 1@2 files
-2024/08/04-16:07:48.449 1590 Generated table #99@1: 51764 keys, 2076270 bytes
-2024/08/04-16:07:48.449 1590 Compacted 1@1 + 1@2 files => 2076270 bytes
-2024/08/04-16:07:48.450 1590 compacted to: files[ 0 0 1 0 0 0 0 ]
-2024/08/04-16:07:48.451 1590 Delete type=2 #95
-2024/08/04-16:07:48.451 1590 Delete type=2 #98
+2024/08/04-16:19:10.507 2930 Reusing MANIFEST E:\soporte-ti\.wwebjs_auth\session\Default\IndexedDB\https_web.whatsapp.com_0.indexeddb.leveldb/MANIFEST-000001
+2024/08/04-16:19:10.508 2930 Recovering log #105
+2024/08/04-16:19:10.537 2930 Reusing old log E:\soporte-ti\.wwebjs_auth\session\Default\IndexedDB\https_web.whatsapp.com_0.indexeddb.leveldb/000105.log 
+2024/08/04-16:19:12.393 2270 Level-0 table #110: started
+2024/08/04-16:19:12.400 2270 Level-0 table #110: 96846 bytes OK
+2024/08/04-16:19:12.401 2270 Delete type=0 #105
+2024/08/04-16:19:12.402 2930 Manual compaction at level-0 from '\x00!\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00"\x00\x00\x00' @ 0 : 0; will stop at (end)
+2024/08/04-16:19:17.106 2ec4 Compacting 1@1 + 1@2 files
+2024/08/04-16:19:17.193 2ec4 Generated table #111@1: 55052 keys, 2188392 bytes
+2024/08/04-16:19:17.194 2ec4 Compacted 1@1 + 1@2 files => 2188392 bytes
+2024/08/04-16:19:17.194 2ec4 compacted to: files[ 0 0 1 0 0 0 0 ]
+2024/08/04-16:19:17.195 2ec4 Delete type=2 #107
+2024/08/04-16:19:17.195 2ec4 Delete type=2 #110

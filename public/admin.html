@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel de Administración</title>
+</head>
+<body>
+    <h1>Panel de Administración</h1>
+    <form id="add-agent-form">
+        <input type="text" id="agent-username" placeholder="Nombre de usuario del agente" required>
+        <input type="password" id="agent-password" placeholder="Contraseña del agente" required>
+        <button type="submit">Agregar Agente</button>
+    </form>
+    <div id="agents"></div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const token = localStorage.getItem('token');
+
+            if (!token) {
+                window.location.href = '/login.html';
+                return;
+            }
+
+            const form = document.getElementById('add-agent-form');
+            form.addEventListener('submit', event => {
+                event.preventDefault();
+                
+                const username = document.getElementById('agent-username').value;
+                const password = document.getElementById('agent-password').value;
+
+                fetch('/admin/add-agent', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ username, password })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.message) {
+                        alert(data.message);
+                        loadAgents();
+                    } else {
+                        alert('Error al agregar agente');
+                    }
+                })
+                .catch(error => console.error('Error:', error));
+            });
+
+            function loadAgents() {
+                fetch('/admin/agents', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    const agentsDiv = document.getElementById('agents');
+                    agentsDiv.innerHTML = data.map(agent => `
+                        <div>
+                            <h3>${agent.username}</h3>
+                            <button onclick="deleteAgent('${agent._id}')">Eliminar</button>
+                        </div>
+                    `).join('');
+                })
+                .catch(error => console.error('Error:', error));
+            }
+
+            window.deleteAgent = function(id) {
+                fetch(`/admin/delete-agent/${id}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.message) {
+                        alert(data.message);
+                        loadAgents();
+                    } else {
+                        alert('Error al eliminar agente');
+                    }
+                })
+                .catch(error => console.error('Error:', error));
+            };
+
+            loadAgents();
+        });
+    </script>
+</body>
+</html>

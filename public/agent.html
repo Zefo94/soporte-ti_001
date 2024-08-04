@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portal del Agente</title>
+</head>
+<body>
+    <h1>Portal del Agente</h1>
+    <div id="tickets"></div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const token = localStorage.getItem('token');
+
+            if (!token) {
+                window.location.href = '/login.html';
+                return;
+            }
+
+            fetch('/agent/tickets', {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                const ticketsDiv = document.getElementById('tickets');
+                ticketsDiv.innerHTML = data.map(ticket => `
+                    <div>
+                        <h3>${ticket.message}</h3>
+                        <p>De: ${ticket.from}</p>
+                    </div>
+                `).join('');
+            })
+            .catch(error => console.error('Error:', error));
+        });
+    </script>
+</body>
+</html>

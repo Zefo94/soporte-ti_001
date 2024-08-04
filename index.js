@@ -11,6 +11,7 @@ const adminRoutes = require('./routes/admin');
 
 const app = express();
 app.use(bodyParser.json());
+app.use(express.static('public'));
 
 const JWT_SECRET = 'tu_clave_secreta';
 
@@ -42,9 +43,13 @@ client.on('message', async msg => {
 
   const { from, body } = msg;
   try {
-    const newTicket = new Ticket({ from, message: body });
+    // Encuentra un agente disponible
+    const agent = await User.findOne({ role: 'agent' });
+
+    // Crea el ticket y asígnalo al agente encontrado
+    const newTicket = new Ticket({ from, message: body, assignedTo: agent._id });
     await newTicket.save();
-    console.log('Ticket creado:', newTicket);
+    console.log('Ticket creado y asignado a:', agent.username);
   } catch (error) {
     console.error('Error al crear el ticket:', error);
   }
@@ -107,29 +112,18 @@ const adminMiddleware = (req, res, next) => {
 // Integrar rutas de administración
 app.use('/admin', authMiddleware, adminMiddleware, adminRoutes);
 
-// Ejemplo de ruta protegida
-app.get('/protected', authMiddleware, (req, res) => {
-  res.json({ message: 'Acceso autorizado' });
+// Ruta para obtener los tickets asignados al agente
+app.get('/agent/tickets', authMiddleware, async (req, res) => {
+  try {
+    const tickets = await Ticket.find({ assignedTo: req.user.id });
+    res.json(tickets);
+  } catch (error) {
+    console.error('Error al obtener los tickets:', error);
+    res.status(500).json({ error: 'Error al obtener los tickets' });
+  }
 });
 
 // Inicia el servidor
 app.listen(3000, () => {
   console.log('Servidor escuchando en puerto 3000');
-});
-//asignar tickets automáticamente
-client.on('message', async msg => {
-  console.log('MESSAGE RECEIVED', msg);
-
-  const { from, body } = msg;
-  try {
-    // Encuentra un agente disponible
-    const agent = await User.findOne({ role: 'agent' });
-
-    // Crea el ticket y asígnalo al agente encontrado
-    const newTicket = new Ticket({ from, message: body, assignedTo: agent._id });
-    await newTicket.save();
-    console.log('Ticket creado y asignado a:', agent.username);
-  } catch (error) {
-    console.error('Error al crear el ticket:', error);
-  }
 });
