@@ -3,43 +3,53 @@ const bodyParser = require('body-parser');
 const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-const Ticket = require('./models/ticket');
+const qrcode = require('qrcode-terminal');
+const { Client, LocalAuth } = require('whatsapp-web.js');
 const User = require('./models/user');
+const Ticket = require('./models/ticket');
 
 const app = express();
 app.use(bodyParser.json());
 
-const JWT_SECRET = 'tu_clave_secreta'; // Cambia esto a una clave secreta más segura en producción
+const JWT_SECRET = 'tu_clave_secreta';
 
 // Conexión a MongoDB
-mongoose.connect('mongodb://localhost:27017/soporte-ti')
-  .then(() => {
-    console.log('Conectado a MongoDB');
-  })
-  .catch((error) => {
-    console.error('Error al conectar a MongoDB:', error);
-  });
-
-
-// Inicia el servidor
-app.listen(3000, () => {
-  console.log('Servidor escuchando en puerto 3000');
+mongoose.connect('mongodb://localhost:27017/soporte-ti', {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+}).then(() => {
+  console.log('Conectado a MongoDB');
+}).catch((error) => {
+  console.error('Error al conectar a MongoDB:', error);
 });
 
-// Ruta para el webhook de WhatsApp
-app.post('/webhook', async (req, res) => {
-  const { from, message } = req.body;
+// Configuración de whatsapp-web.js
+const client = new Client({
+  authStrategy: new LocalAuth()
+});
 
+client.on('qr', qr => {
+  qrcode.generate(qr, { small: true });
+});
+
+client.on('ready', () => {
+  console.log('WhatsApp Web client is ready!');
+});
+
+client.on('message', async msg => {
+  console.log('MESSAGE RECEIVED', msg);
+
+  const { from, body } = msg;
   try {
-    const newTicket = new Ticket({ from, message });
+    const newTicket = new Ticket({ from, message: body });
     await newTicket.save();
     console.log('Ticket creado:', newTicket);
-    res.sendStatus(200);
   } catch (error) {
     console.error('Error al crear el ticket:', error);
-    res.sendStatus(500);
   }
 });
+
+client.initialize();
 
 // Ruta de registro de usuario
 app.post('/register', async (req, res) => {
@@ -49,6 +59,7 @@ app.post('/register', async (req, res) => {
     await user.save();
     res.status(201).json({ message: 'Usuario creado' });
   } catch (error) {
+    console.error('Error al registrar usuario:', error);
     res.status(400).json({ error: 'Error al crear el usuario' });
   }
 });
@@ -87,4 +98,9 @@ const authMiddleware = (req, res, next) => {
 // Ejemplo de ruta protegida
 app.get('/protected', authMiddleware, (req, res) => {
   res.json({ message: 'Acceso autorizado' });
+});
+
+// Inicia el servidor
+app.listen(3000, () => {
+  console.log('Servidor escuchando en puerto 3000');
 });
