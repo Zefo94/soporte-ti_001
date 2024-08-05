@@ -1,3 +1,4 @@
+// index.js
 const express = require('express');
 const bodyParser = require('body-parser');
 const mongoose = require('mongoose');
@@ -10,8 +11,13 @@ const Ticket = require('./models/ticket');
 const adminRoutes = require('./routes/admin');
 const fs = require('fs');
 const multer = require('multer');
+const socketIo = require('socket.io');
+const http = require('http');
 
 const app = express();
+const server = http.createServer(app);
+const io = socketIo(server);
+
 app.use(bodyParser.json());
 app.use(express.static('public'));
 
@@ -43,23 +49,33 @@ client.on('ready', () => {
 client.on('message', async msg => {
   console.log('MESSAGE RECEIVED', msg);
 
-  const { from, body } = msg;
-  try {
-    // Encuentra un agente disponible
-    const agent = await User.findOne({ role: 'agent' });
+  const { from, body, hasMedia } = msg;
+  let messageContent = body;
 
-    // Crea el ticket y asígnalo al agente encontrado
-    const existingTicket = await Ticket.findOne({ from });
+  if (hasMedia) {
+    const media = await msg.downloadMedia();
+    messageContent = media;
+  }
+
+  try {
+    let existingTicket = await Ticket.findOne({ from });
 
     if (existingTicket) {
-      existingTicket.message = body;
+      existingTicket.message = messageContent;
       await existingTicket.save();
+      io.emit('message', { from, message: messageContent });
     } else {
-      const newTicket = new Ticket({ from, message: body, assignedTo: agent._id });
+      const agent = await User.findOne({ role: 'agent' });
+      if (!agent) {
+        console.log('No se encontró un agente disponible');
+        return; // Si no hay agentes disponibles, no se crea el ticket
+      }
+      const newTicket = new Ticket({ from, message: messageContent, assignedTo: agent._id });
       await newTicket.save();
+      io.emit('message', { from, message: messageContent });
     }
 
-    console.log('Ticket creado y asignado a:', agent.username);
+    console.log('Ticket actualizado y mensaje enviado a la interfaz del agente');
   } catch (error) {
     console.error('Error al crear el ticket:', error);
   }
@@ -207,6 +223,14 @@ app.post('/agent/tickets/:id/media', authMiddleware, agentMiddleware, upload.sin
   }
 });
 
-app.listen(3000, () => {
+io.on('connection', (socket) => {
+  console.log('Nuevo cliente conectado');
+
+  socket.on('disconnect', () => {
+    console.log('Cliente desconectado');
+  });
+});
+
+server.listen(3000, () => {
   console.log('Servidor escuchando en puerto 3000');
 });

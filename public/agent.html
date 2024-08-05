@@ -73,11 +73,14 @@
     </div>
     <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
     <script>
         const token = localStorage.getItem('token');
         if (!token) {
             window.location.href = '/login.html';
         }
+
+        const socket = io();
 
         const ticketList = document.getElementById('ticketList');
         const chatBox = document.getElementById('chatBox');
@@ -167,6 +170,15 @@
                 appendMessage(`[${file.type.split('/')[0].toUpperCase()}] ${file.name}`, 'agent');
             } catch (error) {
                 console.error('Error al enviar el archivo:', error);
+            }
+        });
+
+        socket.on('message', (data) => {
+            const { from, message } = data;
+            const ticketId = chatMessages.dataset.ticketId;
+            const ticketFrom = ticketList.querySelector(`[data-from="${from}"]`);
+            if (ticketFrom && ticketFrom.dataset.ticketId === ticketId) {
+                appendMessage(message, 'client');
             }
         });
 

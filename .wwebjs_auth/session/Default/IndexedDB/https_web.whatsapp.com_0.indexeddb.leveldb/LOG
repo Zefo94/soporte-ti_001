@@ -1,15 +1,15 @@
-2024/08/04-19:43:41.595 24a0 Reusing MANIFEST E:\soporte-ti\.wwebjs_auth\session\Default\IndexedDB\https_web.whatsapp.com_0.indexeddb.leveldb/MANIFEST-000001
-2024/08/04-19:43:41.595 24a0 Recovering log #92
-2024/08/04-19:43:41.614 24a0 Reusing old log E:\soporte-ti\.wwebjs_auth\session\Default\IndexedDB\https_web.whatsapp.com_0.indexeddb.leveldb/000092.log 
-2024/08/04-19:43:43.567 3bc Level-0 table #98: started
-2024/08/04-19:43:43.573 3bc Level-0 table #98: 157197 bytes OK
-2024/08/04-19:43:43.574 3bc Delete type=0 #92
-2024/08/04-19:43:43.575 27f8 Manual compaction at level-0 from '\x00%\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00&\x00\x00\x00' @ 0 : 0; will stop at (end)
-2024/08/04-19:43:48.283 3bc Compacting 1@1 + 2@2 files
-2024/08/04-19:43:48.392 3bc Generated table #99@1: 52300 keys, 2211142 bytes
-2024/08/04-19:43:48.404 3bc Generated table #100@1: 5860 keys, 115092 bytes
-2024/08/04-19:43:48.404 3bc Compacted 1@1 + 2@2 files => 2326234 bytes
-2024/08/04-19:43:48.406 3bc compacted to: files[ 0 0 2 0 0 0 0 ]
-2024/08/04-19:43:48.406 3bc Delete type=2 #94
-2024/08/04-19:43:48.406 3bc Delete type=2 #95
-2024/08/04-19:43:48.407 3bc Delete type=2 #98
+2024/08/04-22:36:31.389 25a4 Reusing MANIFEST E:\soporte-ti\.wwebjs_auth\session\Default\IndexedDB\https_web.whatsapp.com_0.indexeddb.leveldb/MANIFEST-000001
+2024/08/04-22:36:31.390 25a4 Recovering log #160
+2024/08/04-22:36:31.412 25a4 Reusing old log E:\soporte-ti\.wwebjs_auth\session\Default\IndexedDB\https_web.whatsapp.com_0.indexeddb.leveldb/000160.log 
+2024/08/04-22:36:33.413 27f8 Level-0 table #166: started
+2024/08/04-22:36:33.423 27f8 Level-0 table #166: 120360 bytes OK
+2024/08/04-22:36:33.425 27f8 Delete type=0 #160
+2024/08/04-22:36:33.426 27f8 Manual compaction at level-0 from '\x001\x00\x00\x00' @ 72057594037927935 : 1 .. '\x002\x00\x00\x00' @ 0 : 0; will stop at (end)
+2024/08/04-22:36:38.457 27f8 Compacting 1@1 + 2@2 files
+2024/08/04-22:36:38.635 27f8 Generated table #167@1: 44912 keys, 2203506 bytes
+2024/08/04-22:36:38.682 27f8 Generated table #168@1: 25396 keys, 500102 bytes
+2024/08/04-22:36:38.682 27f8 Compacted 1@1 + 2@2 files => 2703608 bytes
+2024/08/04-22:36:38.683 27f8 compacted to: files[ 0 0 2 0 0 0 0 ]
+2024/08/04-22:36:38.684 27f8 Delete type=2 #162
+2024/08/04-22:36:38.684 27f8 Delete type=2 #163
+2024/08/04-22:36:38.685 27f8 Delete type=2 #166
