@@ -4,20 +4,24 @@ const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const qrcode = require('qrcode-terminal');
+const { Server } = require('socket.io');
 const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
 const User = require('./models/user');
 const Ticket = require('./models/ticket');
 const adminRoutes = require('./routes/admin');
 const fs = require('fs');
 const multer = require('multer');
+const path = require('path');
 
 const app = express();
+const server = require('http').createServer(app);
+const io = new Server(server);
+
 app.use(bodyParser.json());
 app.use(express.static('public'));
 
 const JWT_SECRET = 'tu_clave_secreta';
 
-// Conexión a MongoDB
 mongoose.connect('mongodb://localhost:27017/soporte-ti', {
   useNewUrlParser: true,
   useUnifiedTopology: true,
@@ -27,7 +31,6 @@ mongoose.connect('mongodb://localhost:27017/soporte-ti', {
   console.error('Error al conectar a MongoDB:', error);
 });
 
-// Configuración de whatsapp-web.js
 const client = new Client({
   authStrategy: new LocalAuth()
 });
@@ -43,31 +46,59 @@ client.on('ready', () => {
 client.on('message', async msg => {
   console.log('MESSAGE RECEIVED', msg);
 
-  const { from, body } = msg;
+  const { from, body, hasMedia } = msg;
   try {
-    // Encuentra un agente disponible
     const agent = await User.findOne({ role: 'agent' });
+    const existingTicket = await Ticket.findOne({ from, status: 'open' });
 
-    // Crea el ticket y asígnalo al agente encontrado
-    const existingTicket = await Ticket.findOne({ from });
+    if (hasMedia) {
+      const media = await msg.downloadMedia();
+      const mediaPath = `public/uploads/${Date.now()}_${media.filename}`;
+      fs.writeFileSync(mediaPath, Buffer.from(media.data, 'base64'));
 
-    if (existingTicket) {
-      existingTicket.message = body;
-      await existingTicket.save();
+      if (existingTicket) {
+        existingTicket.message += `\n[${media.mimetype.toUpperCase()}] ${mediaPath}`;
+        existingTicket.mediaPath = mediaPath;
+        existingTicket.mediaType = media.mimetype;
+        existingTicket.mediaSize = media.filesize;
+        await existingTicket.save();
+        io.emit('newMessage', { ticketId: existingTicket._id, message: mediaPath, mediaType: media.mimetype });
+      } else {
+        const newTicket = new Ticket({
+          from,
+          message: `[${media.mimetype.toUpperCase()}] ${mediaPath}`,
+          assignedTo: agent._id,
+          mediaPath,
+          mediaType: media.mimetype,
+          mediaSize: media.filesize,
+        });
+        await newTicket.save();
+        io.emit('newTicket', newTicket);
+      }
     } else {
-      const newTicket = new Ticket({ from, message: body, assignedTo: agent._id });
-      await newTicket.save();
+      if (existingTicket) {
+        existingTicket.message += `\n${body}`;
+        await existingTicket.save();
+        io.emit('newMessage', { ticketId: existingTicket._id, message: body });
+      } else {
+        const newTicket = new Ticket({
+          from,
+          message: body,
+          assignedTo: agent._id,
+        });
+        await newTicket.save();
+        io.emit('newTicket', newTicket);
+      }
     }
 
-    console.log('Ticket creado y asignado a:', agent.username);
+    console.log('Ticket actualizado y asignado a:', agent.username);
   } catch (error) {
-    console.error('Error al crear el ticket:', error);
+    console.error('Error al actualizar el ticket:', error);
   }
 });
 
 client.initialize();
 
-// Ruta de registro de usuario
 app.post('/register', async (req, res) => {
   const { username, password, role } = req.body;
   try {
@@ -80,7 +111,6 @@ app.post('/register', async (req, res) => {
   }
 });
 
-// Ruta de inicio de sesión
 app.post('/login', async (req, res) => {
   const { username, password } = req.body;
   try {
@@ -99,7 +129,6 @@ app.post('/login', async (req, res) => {
   }
 });
 
-// Middleware de autenticación
 const authMiddleware = (req, res, next) => {
   const token = req.header('Authorization').replace('Bearer ', '');
   try {
@@ -111,7 +140,6 @@ const authMiddleware = (req, res, next) => {
   }
 };
 
-// Middleware para verificar si el usuario es administrador
 const adminMiddleware = (req, res, next) => {
   if (req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Acceso denegado' });
@@ -119,7 +147,6 @@ const adminMiddleware = (req, res, next) => {
   next();
 };
 
-// Middleware para verificar si el usuario es agente
 const agentMiddleware = (req, res, next) => {
   if (req.user.role !== 'agent') {
     return res.status(403).json({ error: 'Acceso denegado' });
@@ -127,43 +154,17 @@ const agentMiddleware = (req, res, next) => {
   next();
 };
 
-// Integrar rutas de administración
 app.use('/admin', authMiddleware, adminMiddleware, adminRoutes);
 
-// Ruta para obtener los tickets asignados al agente
 app.get('/agent/tickets', authMiddleware, agentMiddleware, async (req, res) => {
   try {
-    const tickets = await Ticket.find({ assignedTo: req.user.id });
+    const tickets = await Ticket.find({ assignedTo: req.user.id, status: 'open' });
     res.status(200).json(tickets);
   } catch (error) {
     res.status(500).json({ error: 'Error al obtener los tickets' });
   }
 });
 
-// Ruta para actualizar el estado de los tickets por el agente
-app.put('/agent/tickets/:id', authMiddleware, agentMiddleware, async (req, res) => {
-  const { id } = req.params;
-  const { status } = req.body;
-
-  try {
-    const ticket = await Ticket.findById(id);
-    if (!ticket) {
-      return res.status(404).json({ error: 'Ticket no encontrado' });
-    }
-
-    ticket.status = status;
-    await ticket.save();
-
-    res.status(200).json({ message: 'Ticket actualizado' });
-  } catch (error) {
-    res.status(500).json({ error: 'Error al actualizar el ticket' });
-  }
-});
-
-// Configuración de multer para la subida de archivos
-const upload = multer({ dest: 'uploads/' });
-
-// Ruta para enviar mensajes desde el agente al cliente
 app.post('/agent/tickets/:id/message', authMiddleware, agentMiddleware, async (req, res) => {
   const { id } = req.params;
   const { message } = req.body;
@@ -174,8 +175,11 @@ app.post('/agent/tickets/:id/message', authMiddleware, agentMiddleware, async (r
       return res.status(404).json({ error: 'Ticket no encontrado' });
     }
 
-    const chatId = ticket.from; // ID de chat del cliente
+    const chatId = ticket.from;
     await client.sendMessage(chatId, message);
+
+    ticket.message += `\n${message}`;
+    await ticket.save();
 
     res.status(200).json({ message: 'Mensaje enviado' });
   } catch (error) {
@@ -183,7 +187,17 @@ app.post('/agent/tickets/:id/message', authMiddleware, agentMiddleware, async (r
   }
 });
 
-// Ruta para enviar archivos multimedia desde el agente al cliente
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, 'public/uploads/');
+  },
+  filename: (req, file, cb) => {
+    cb(null, `upload_${Date.now()}_${file.originalname}`);
+  }
+});
+
+const upload = multer({ storage });
+
 app.post('/agent/tickets/:id/media', authMiddleware, agentMiddleware, upload.single('file'), async (req, res) => {
   const { id } = req.params;
   const file = req.file;
@@ -195,18 +209,43 @@ app.post('/agent/tickets/:id/media', authMiddleware, agentMiddleware, upload.sin
     }
 
     const media = MessageMedia.fromFilePath(file.path);
-    const chatId = ticket.from; // ID de chat del cliente
+    const chatId = ticket.from;
     await client.sendMessage(chatId, media);
 
-    // Elimina el archivo temporal después de enviarlo
-    fs.unlinkSync(file.path);
+    ticket.message += `\n[MEDIA] ${file.filename}`;
+    ticket.mediaPath = `/uploads/${file.filename}`;
+    ticket.mediaType = file.mimetype;
+    ticket.mediaSize = file.size;
+    await ticket.save();
 
-    res.status(200).json({ message: 'Archivo enviado' });
+    res.status(200).json({ filename: file.filename });
   } catch (error) {
     res.status(500).json({ error: 'Error al enviar el archivo' });
   }
 });
 
-app.listen(3000, () => {
+app.post('/agent/tickets/:id/close', authMiddleware, agentMiddleware, async (req, res) => {
+  const { id } = req.params;
+  const { solution } = req.body;
+
+  try {
+    const ticket = await Ticket.findById(id);
+    if (!ticket) {
+      return res.status(404).json({ error: 'Ticket no encontrado' });
+    }
+
+    ticket.status = 'closed';
+    ticket.solution = solution;
+    await ticket.save();
+
+    io.emit('ticketClosed', { ticketId: id });
+
+    res.status(200).json({ message: 'Ticket cerrado' });
+  } catch (error) {
+    res.status(500).json({ error: 'Error al cerrar el ticket' });
+  }
+});
+
+server.listen(3000, () => {
   console.log('Servidor escuchando en puerto 3000');
 });
