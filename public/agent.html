@@ -51,21 +51,28 @@
             display: inline-block;
             padding: 10px;
             background-color: #23ac43;
-            color: white
+            color: white;
+            margin-right: 10px;
         }
         .chat-input .file-input {
             display: none;
         }
+        .message-client {
+            text-align: left;
+            background-color: #f1f1f1;
+            padding: 10px;
+            border-radius: 10px;
+            margin-bottom: 10px;
+        }
+        .message-agent {
+            text-align: right;
+            background-color: #d1f7d1;
+            padding: 10px;
+            border-radius: 10px;
+            margin-bottom: 10px;
+        }
         .modal img {
             max-width: 100%;
-        }
-        .chat-message.agent {
-            text-align: right;
-            color: green;
-        }
-        .chat-message.client {
-            text-align: left;
-            color: blue;
         }
     </style>
 </head>
@@ -84,9 +91,9 @@
                 <h3>Chat</h3>
                 <div class="chat-messages" id="chatMessages"></div>
                 <div class="chat-input">
-                    <input type="text" id="chatInput" placeholder="Escribe un mensaje...">
-                    <input type="file" id="fileInput" class="file-input">
                     <label for="fileInput" class="file-label">📎</label>
+                    <input type="file" id="fileInput" class="file-input">
+                    <input type="text" id="chatInput" placeholder="Escribe un mensaje...">
                     <button id="sendButton">Enviar</button>
                 </div>
                 <button id="closeTicketButton" class="btn btn-danger mt-2">Cerrar Ticket</button>
@@ -113,6 +120,164 @@
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="/socket.io/socket.io.js"></script>
-    <script src="agent.js"></script>
+    <script>
+        const token = localStorage.getItem('token');
+        if (!token) {
+            window.location.href = '/login.html';
+        }
+
+        const ticketList = document.getElementById('ticketList');
+        const chatBox = document.getElementById('chatBox');
+        const chatMessages = document.getElementById('chatMessages');
+        const chatInput = document.getElementById('chatInput');
+        const sendButton = document.getElementById('sendButton');
+        const fileInput = document.getElementById('fileInput');
+        const closeTicketButton = document.getElementById('closeTicketButton');
+
+        document.getElementById('logoutButton').addEventListener('click', () => {
+            localStorage.removeItem('token');
+            window.location.href = '/login.html';
+        });
+
+        async function fetchTickets() {
+            try {
+                const response = await axios.get('/agent/tickets', {
+                    headers: {
+                        Authorization: `Bearer ${token}`
+                    }
+                });
+                const tickets = response.data;
+                ticketList.innerHTML = '';
+                tickets.forEach(ticket => {
+                    const li = document.createElement('li');
+                    li.className = 'list-group-item';
+                    li.textContent = `${ticket.fromName || ticket.from}: ${ticket.message.split('\n').pop()}`;
+                    li.addEventListener('click', () => openChat(ticket));
+                    ticketList.appendChild(li);
+                });
+            } catch (error) {
+                console.error('Error al obtener los tickets:', error);
+            }
+        }
+
+        function openChat(ticket) {
+            chatBox.style.display = 'flex';
+            chatMessages.innerHTML = ticket.message.split('\n').map(msg => {
+                if (msg.startsWith('[IMAGE]')) {
+                    const imgSrc = msg.replace('[IMAGE]', '').trim();
+                    return `<div class="message-client"><img src="${imgSrc}" alt="Imagen" style="max-width: 100px; cursor: pointer;" onclick="openImage('${imgSrc}')"></div>`;
+                } else if (msg.startsWith('[MEDIA]')) {
+                    const mediaSrc = msg.replace('[MEDIA]', '').trim();
+                    return `<div class="message-client"><a href="${mediaSrc}" download>Descargar archivo</a></div>`;
+                } else {
+                    return `<div class="${msg.from === 'client' ? 'message-client' : 'message-agent'}">${msg}</div>`;
+                }
+            }).join('');
+            chatMessages.dataset.ticketId = ticket._id;
+        }
+
+        function openImage(src) {
+            $('#modalImage').attr('src', src);
+            $('#imageModal').modal('show');
+        }
+
+        sendButton.addEventListener('click', sendMessage);
+        chatInput.addEventListener('keypress', handleKeyPress);
+
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                sendMessage();
+            }
+        }
+
+        async function sendMessage() {
+            const message = chatInput.value;
+            if (!message) return;
+
+            const ticketId = chatMessages.dataset.ticketId;
+            try {
+                await axios.post(`/agent/tickets/${ticketId}/message`, { message }, {
+                    headers: {
+                        Authorization: `Bearer ${token}`
+                    }
+                });
+                chatMessages.innerHTML += `<div class="message-agent">${message}</div>`;
+                chatInput.value = '';
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            } catch (error) {
+                console.error('Error al enviar el mensaje:', error);
+            }
+        }
+
+        fileInput.addEventListener('change', async (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const ticketId = chatMessages.dataset.ticketId;
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await axios.post(`/agent/tickets/${ticketId}/media`, formData, {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        'Content-Type': 'multipart/form-data'
+                    }
+                });
+                const mediaSrc = `/uploads/${response.data.filename}`;
+                if (file.type.startsWith('image/')) {
+                    chatMessages.innerHTML += `<div class="message-agent"><img src="${mediaSrc}" alt="Imagen" style="max-width: 100px; cursor: pointer;" onclick="openImage('${mediaSrc}')"></div>`;
+                } else {
+                    chatMessages.innerHTML += `<div class="message-agent"><a href="${mediaSrc}" download>Descargar archivo</a></div>`;
+                }
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            } catch (error) {
+                console.error('Error al enviar el archivo:', error);
+            }
+        });
+
+        closeTicketButton.addEventListener('click', async () => {
+            const ticketId = chatMessages.dataset.ticketId;
+            const solution = prompt('Por favor, ingrese la solución para este ticket:');
+            if (!solution) return;
+
+            try {
+                await axios.post(`/agent/tickets/${ticketId}/close`, { solution }, {
+                    headers: {
+                        Authorization: `Bearer ${token}`
+                    }
+                });
+                fetchTickets();
+                chatBox.style.display = 'none';
+            } catch (error) {
+                console.error('Error al cerrar el ticket:', error);
+            }
+        });
+
+        fetchTickets();
+
+        const socket = io();
+        socket.on('newTicket', fetchTickets);
+        socket.on('newMessage', ({ ticketId, message, mediaType, from }) => {
+            if (chatMessages.dataset.ticketId === ticketId) {
+                if (mediaType && mediaType.startsWith('image/')) {
+                    chatMessages.innerHTML += `<div class="${from === 'client' ? 'message-client' : 'message-agent'}"><img src="${message}" alt="Imagen" style="max-width: 100px; cursor: pointer;" onclick="openImage('${message}')"></div>`;
+                } else if (mediaType) {
+                    chatMessages.innerHTML += `<div class="${from === 'client' ? 'message-client' : 'message-agent'}"><a href="${message}" download>Descargar archivo</a></div>`;
+                } else {
+                    chatMessages.innerHTML += `<div class="${from === 'client' ? 'message-client' : 'message-agent'}">${message}</div>`;
+                }
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }
+        });
+        socket.on('ticketClosed', ({ ticketId }) => {
+            if (chatMessages.dataset.ticketId === ticketId) {
+                chatMessages.innerHTML += '<div class="message-agent">Ticket cerrado.</div>';
+                chatBox.style.display = 'none';
+                fetchTickets();
+            }
+        });
+    </script>
 </body>
 </html>
