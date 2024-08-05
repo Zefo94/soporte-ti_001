@@ -47,8 +47,16 @@ client.on('message', async msg => {
     const agent = await User.findOne({ role: 'agent' });
 
     // Crea el ticket y asígnalo al agente encontrado
-    const newTicket = new Ticket({ from, message: body, assignedTo: agent._id });
-    await newTicket.save();
+    const existingTicket = await Ticket.findOne({ from });
+
+    if (existingTicket) {
+      existingTicket.message = body;
+      await existingTicket.save();
+    } else {
+      const newTicket = new Ticket({ from, message: body, assignedTo: agent._id });
+      await newTicket.save();
+    }
+
     console.log('Ticket creado y asignado a:', agent.username);
   } catch (error) {
     console.error('Error al crear el ticket:', error);
@@ -61,11 +69,11 @@ client.initialize();
 app.post('/register', async (req, res) => {
   const { username, password, role } = req.body;
   try {
-    const user = new User({ username, password, role });
+    const hashedPassword = await bcrypt.hash(password, 8);
+    const user = new User({ username, password: hashedPassword, role });
     await user.save();
     res.status(201).json({ message: 'Usuario creado' });
   } catch (error) {
-    console.error('Error al registrar usuario:', error);
     res.status(400).json({ error: 'Error al crear el usuario' });
   }
 });
@@ -78,12 +86,12 @@ app.post('/login', async (req, res) => {
     if (!user) {
       return res.status(401).json({ error: 'Usuario no encontrado' });
     }
-    const isMatch = await user.comparePassword(password);
+    const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(401).json({ error: 'Contraseña incorrecta' });
     }
     const token = jwt.sign({ id: user._id, role: user.role }, JWT_SECRET, { expiresIn: '1h' });
-    res.json({ token });
+    res.json({ token, role: user.role });
   } catch (error) {
     res.status(500).json({ error: 'Error en el servidor' });
   }
@@ -109,21 +117,47 @@ const adminMiddleware = (req, res, next) => {
   next();
 };
 
+// Middleware para verificar si el usuario es agente
+const agentMiddleware = (req, res, next) => {
+  if (req.user.role !== 'agent') {
+    return res.status(403).json({ error: 'Acceso denegado' });
+  }
+  next();
+};
+
 // Integrar rutas de administración
 app.use('/admin', authMiddleware, adminMiddleware, adminRoutes);
 
 // Ruta para obtener los tickets asignados al agente
-app.get('/agent/tickets', authMiddleware, async (req, res) => {
+app.get('/agent/tickets', authMiddleware, agentMiddleware, async (req, res) => {
   try {
     const tickets = await Ticket.find({ assignedTo: req.user.id });
-    res.json(tickets);
+    res.status(200).json(tickets);
   } catch (error) {
-    console.error('Error al obtener los tickets:', error);
     res.status(500).json({ error: 'Error al obtener los tickets' });
   }
 });
 
-// Inicia el servidor
+// Ruta para actualizar el estado de los tickets por el agente
+app.put('/agent/tickets/:id', authMiddleware, agentMiddleware, async (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body;
+
+  try {
+    const ticket = await Ticket.findById(id);
+    if (!ticket) {
+      return res.status(404).json({ error: 'Ticket no encontrado' });
+    }
+
+    ticket.status = status;
+    await ticket.save();
+
+    res.status(200).json({ message: 'Ticket actualizado' });
+  } catch (error) {
+    res.status(500).json({ error: 'Error al actualizar el ticket' });
+  }
+});
+
 app.listen(3000, () => {
   console.log('Servidor escuchando en puerto 3000');
 });

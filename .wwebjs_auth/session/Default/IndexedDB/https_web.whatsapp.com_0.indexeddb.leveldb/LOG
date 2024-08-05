@@ -1,13 +1,15 @@
-2024/08/04-16:19:10.507 2930 Reusing MANIFEST E:\soporte-ti\.wwebjs_auth\session\Default\IndexedDB\https_web.whatsapp.com_0.indexeddb.leveldb/MANIFEST-000001
-2024/08/04-16:19:10.508 2930 Recovering log #105
-2024/08/04-16:19:10.537 2930 Reusing old log E:\soporte-ti\.wwebjs_auth\session\Default\IndexedDB\https_web.whatsapp.com_0.indexeddb.leveldb/000105.log 
-2024/08/04-16:19:12.393 2270 Level-0 table #110: started
-2024/08/04-16:19:12.400 2270 Level-0 table #110: 96846 bytes OK
-2024/08/04-16:19:12.401 2270 Delete type=0 #105
-2024/08/04-16:19:12.402 2930 Manual compaction at level-0 from '\x00!\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00"\x00\x00\x00' @ 0 : 0; will stop at (end)
-2024/08/04-16:19:17.106 2ec4 Compacting 1@1 + 1@2 files
-2024/08/04-16:19:17.193 2ec4 Generated table #111@1: 55052 keys, 2188392 bytes
-2024/08/04-16:19:17.194 2ec4 Compacted 1@1 + 1@2 files => 2188392 bytes
-2024/08/04-16:19:17.194 2ec4 compacted to: files[ 0 0 1 0 0 0 0 ]
-2024/08/04-16:19:17.195 2ec4 Delete type=2 #107
-2024/08/04-16:19:17.195 2ec4 Delete type=2 #110
+2024/08/04-18:24:43.003 b90 Reusing MANIFEST E:\soporte-ti\.wwebjs_auth\session\Default\IndexedDB\https_web.whatsapp.com_0.indexeddb.leveldb/MANIFEST-000001
+2024/08/04-18:24:43.003 b90 Recovering log #208
+2024/08/04-18:24:43.025 b90 Reusing old log E:\soporte-ti\.wwebjs_auth\session\Default\IndexedDB\https_web.whatsapp.com_0.indexeddb.leveldb/000208.log 
+2024/08/04-18:24:45.020 2af8 Level-0 table #214: started
+2024/08/04-18:24:45.026 2af8 Level-0 table #214: 103827 bytes OK
+2024/08/04-18:24:45.028 2af8 Delete type=0 #208
+2024/08/04-18:24:45.029 278c Manual compaction at level-0 from '\x007\x00\x00\x00' @ 72057594037927935 : 1 .. '\x008\x00\x00\x00' @ 0 : 0; will stop at (end)
+2024/08/04-18:24:47.736 b90 Compacting 1@1 + 2@2 files
+2024/08/04-18:24:47.828 b90 Generated table #215@1: 49890 keys, 2209469 bytes
+2024/08/04-18:24:47.854 b90 Generated table #216@1: 19091 keys, 377936 bytes
+2024/08/04-18:24:47.854 b90 Compacted 1@1 + 2@2 files => 2587405 bytes
+2024/08/04-18:24:47.854 b90 compacted to: files[ 0 0 2 0 0 0 0 ]
+2024/08/04-18:24:47.854 b90 Delete type=2 #210
+2024/08/04-18:24:47.855 b90 Delete type=2 #211
+2024/08/04-18:24:47.855 b90 Delete type=2 #214

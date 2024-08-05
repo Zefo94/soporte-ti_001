@@ -1,95 +1,109 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Panel de Administración</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Panel de Administración</title>
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+  <header>
     <h1>Panel de Administración</h1>
-    <form id="add-agent-form">
-        <input type="text" id="agent-username" placeholder="Nombre de usuario del agente" required>
-        <input type="password" id="agent-password" placeholder="Contraseña del agente" required>
-        <button type="submit">Agregar Agente</button>
-    </form>
-    <div id="agents"></div>
+    <button id="logout">Cerrar Sesión</button>
+  </header>
+  <main>
+    <section>
+      <h2>Crear Agente</h2>
+      <form id="create-agent-form">
+        <input type="text" id="agent-username" placeholder="Usuario" required>
+        <input type="password" id="agent-password" placeholder="Contraseña" required>
+        <button type="submit">Crear Agente</button>
+      </form>
+    </section>
+    <section>
+      <h2>Gestionar Tickets</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>De</th>
+            <th>Mensaje</th>
+            <th>Estado</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="tickets-table-body">
+        </tbody>
+      </table>
+    </section>
+  </main>
+  <script>
+    document.getElementById('logout').addEventListener('click', () => {
+      localStorage.removeItem('token');
+      window.location.href = 'login.html';
+    });
 
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const token = localStorage.getItem('token');
+    document.getElementById('create-agent-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const username = document.getElementById('agent-username').value;
+      const password = document.getElementById('agent-password').value;
 
-            if (!token) {
-                window.location.href = '/login.html';
-                return;
-            }
+      const res = await fetch('/admin/agents', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({ username, password })
+      });
 
-            const form = document.getElementById('add-agent-form');
-            form.addEventListener('submit', event => {
-                event.preventDefault();
-                
-                const username = document.getElementById('agent-username').value;
-                const password = document.getElementById('agent-password').value;
+      const data = await res.json();
+      if (res.status === 201) {
+        alert('Agente creado exitosamente');
+        loadTickets();
+      } else {
+        alert(data.error);
+      }
+    });
 
-                fetch('/admin/add-agent', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
-                    body: JSON.stringify({ username, password })
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.message) {
-                        alert(data.message);
-                        loadAgents();
-                    } else {
-                        alert('Error al agregar agente');
-                    }
-                })
-                .catch(error => console.error('Error:', error));
-            });
+    const loadTickets = async () => {
+      const res = await fetch('/admin/tickets', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
 
-            function loadAgents() {
-                fetch('/admin/agents', {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                })
-                .then(response => response.json())
-                .then(data => {
-                    const agentsDiv = document.getElementById('agents');
-                    agentsDiv.innerHTML = data.map(agent => `
-                        <div>
-                            <h3>${agent.username}</h3>
-                            <button onclick="deleteAgent('${agent._id}')">Eliminar</button>
-                        </div>
-                    `).join('');
-                })
-                .catch(error => console.error('Error:', error));
-            }
+      const tickets = await res.json();
+      const ticketsTableBody = document.getElementById('tickets-table-body');
+      ticketsTableBody.innerHTML = '';
 
-            window.deleteAgent = function(id) {
-                fetch(`/admin/delete-agent/${id}`, {
-                    method: 'DELETE',
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.message) {
-                        alert(data.message);
-                        loadAgents();
-                    } else {
-                        alert('Error al eliminar agente');
-                    }
-                })
-                .catch(error => console.error('Error:', error));
-            };
+      tickets.forEach(ticket => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${ticket.from}</td>
+          <td>${ticket.message}</td>
+          <td>${ticket.status}</td>
+          <td>
+            <button onclick="updateTicketStatus('${ticket._id}', 'resolved')">Resolver</button>
+            <button onclick="updateTicketStatus('${ticket._id}', 'pending')">Pendiente</button>
+          </td>
+        `;
+        ticketsTableBody.appendChild(row);
+      });
+    };
 
-            loadAgents();
-        });
-    </script>
+    const updateTicketStatus = async (id, status) => {
+      await fetch(`/admin/tickets/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({ status })
+      });
+      loadTickets();
+    };
+
+    loadTickets();
+  </script>
 </body>
 </html>

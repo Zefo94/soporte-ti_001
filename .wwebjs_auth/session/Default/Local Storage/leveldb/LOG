@@ -1,6 +1,3 @@
-2024/08/04-16:19:09.886 2370 Reusing MANIFEST E:\soporte-ti\.wwebjs_auth\session\Default\Local Storage\leveldb/MANIFEST-000001
-2024/08/04-16:19:09.887 2370 Recovering log #3
-2024/08/04-16:19:09.887 2370 Reusing old log E:\soporte-ti\.wwebjs_auth\session\Default\Local Storage\leveldb/000003.log 
-2024/08/04-16:20:10.460 2ec4 Level-0 table #5: started
-2024/08/04-16:20:10.462 2ec4 Level-0 table #5: 16538 bytes OK
-2024/08/04-16:20:10.464 2ec4 Delete type=0 #3
+2024/08/04-18:24:42.375 b90 Reusing MANIFEST E:\soporte-ti\.wwebjs_auth\session\Default\Local Storage\leveldb/MANIFEST-000001
+2024/08/04-18:24:42.376 b90 Recovering log #7
+2024/08/04-18:24:42.377 b90 Reusing old log E:\soporte-ti\.wwebjs_auth\session\Default\Local Storage\leveldb/000007.log 

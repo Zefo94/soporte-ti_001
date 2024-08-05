@@ -1,40 +1,80 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Portal del Agente</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Portal del Agente</title>
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+  <header>
     <h1>Portal del Agente</h1>
-    <div id="tickets"></div>
+    <button id="logout">Cerrar Sesión</button>
+  </header>
+  <main>
+    <section>
+      <h2>Tickets Asignados</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>De</th>
+            <th>Mensaje</th>
+            <th>Estado</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="tickets-table-body">
+        </tbody>
+      </table>
+    </section>
+  </main>
+  <script>
+    document.getElementById('logout').addEventListener('click', () => {
+      localStorage.removeItem('token');
+      window.location.href = 'login.html';
+    });
 
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const token = localStorage.getItem('token');
+    const loadTickets = async () => {
+      const res = await fetch('/agent/tickets', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
 
-            if (!token) {
-                window.location.href = '/login.html';
-                return;
-            }
+      const tickets = await res.json();
+      const ticketsTableBody = document.getElementById('tickets-table-body');
+      ticketsTableBody.innerHTML = '';
 
-            fetch('/agent/tickets', {
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                const ticketsDiv = document.getElementById('tickets');
-                ticketsDiv.innerHTML = data.map(ticket => `
-                    <div>
-                        <h3>${ticket.message}</h3>
-                        <p>De: ${ticket.from}</p>
-                    </div>
-                `).join('');
-            })
-            .catch(error => console.error('Error:', error));
-        });
-    </script>
+      tickets.forEach(ticket => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${ticket.from}</td>
+          <td>${ticket.message}</td>
+          <td>${ticket.status}</td>
+          <td>
+            <button onclick="updateTicketStatus('${ticket._id}', 'resolved')">Resolver</button>
+            <button onclick="updateTicketStatus('${ticket._id}', 'pending')">Pendiente</button>
+          </td>
+        `;
+        ticketsTableBody.appendChild(row);
+      });
+    };
+
+    const updateTicketStatus = async (id, status) => {
+      await fetch(`/agent/tickets/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({ status })
+      });
+      loadTickets();
+    };
+
+    loadTickets();
+    setInterval(loadTickets, 5000);  // Refrescar cada 5 segundos
+  </script>
 </body>
 </html>
+ss
