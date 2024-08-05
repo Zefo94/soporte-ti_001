@@ -1,80 +1,176 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Portal del Agente</title>
-  <link rel="stylesheet" href="styles.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portal del Agente</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <style>
+        .header {
+            background-color: #28a745;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        .chat-container {
+            display: flex;
+            justify-content: space-between;
+        }
+        .ticket-list {
+            width: 30%;
+        }
+        .chat-box {
+            width: 65%;
+            display: none;
+            flex-direction: column;
+        }
+        .chat-messages {
+            flex-grow: 1;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin-bottom: 10px;
+            height: 400px;
+        }
+        .chat-input {
+            display: flex;
+        }
+        .chat-input input {
+            flex-grow: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+        }
+        .chat-input button {
+            padding: 10px 20px;
+            background-color: #28a745;
+            color: white;
+            border: none;
+        }
+    </style>
 </head>
 <body>
-  <header>
-    <h1>Portal del Agente</h1>
-    <button id="logout">Cerrar Sesión</button>
-  </header>
-  <main>
-    <section>
-      <h2>Tickets Asignados</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>De</th>
-            <th>Mensaje</th>
-            <th>Estado</th>
-            <th>Acciones</th>
-          </tr>
-        </thead>
-        <tbody id="tickets-table-body">
-        </tbody>
-      </table>
-    </section>
-  </main>
-  <script>
-    document.getElementById('logout').addEventListener('click', () => {
-      localStorage.removeItem('token');
-      window.location.href = 'login.html';
-    });
-
-    const loadTickets = async () => {
-      const res = await fetch('/agent/tickets', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+    <div class="header">
+        <h1>Portal del Agente</h1>
+        <button id="logoutButton" class="btn btn-danger">Cerrar Sesión</button>
+    </div>
+    <div class="container mt-4">
+        <div class="chat-container">
+            <div class="ticket-list">
+                <h3>Tickets Asignados</h3>
+                <ul id="ticketList" class="list-group"></ul>
+            </div>
+            <div class="chat-box" id="chatBox">
+                <h3>Chat</h3>
+                <div class="chat-messages" id="chatMessages"></div>
+                <div class="chat-input">
+                    <input type="text" id="chatInput" placeholder="Escribe un mensaje...">
+                    <input type="file" id="fileInput" style="display: none;">
+                    <button id="sendButton">Enviar</button>
+                    <button id="uploadButton">📎</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script>
+        const token = localStorage.getItem('token');
+        if (!token) {
+            window.location.href = '/login.html';
         }
-      });
 
-      const tickets = await res.json();
-      const ticketsTableBody = document.getElementById('tickets-table-body');
-      ticketsTableBody.innerHTML = '';
+        const ticketList = document.getElementById('ticketList');
+        const chatBox = document.getElementById('chatBox');
+        const chatMessages = document.getElementById('chatMessages');
+        const chatInput = document.getElementById('chatInput');
+        const sendButton = document.getElementById('sendButton');
+        const fileInput = document.getElementById('fileInput');
+        const uploadButton = document.getElementById('uploadButton');
 
-      tickets.forEach(ticket => {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-          <td>${ticket.from}</td>
-          <td>${ticket.message}</td>
-          <td>${ticket.status}</td>
-          <td>
-            <button onclick="updateTicketStatus('${ticket._id}', 'resolved')">Resolver</button>
-            <button onclick="updateTicketStatus('${ticket._id}', 'pending')">Pendiente</button>
-          </td>
-        `;
-        ticketsTableBody.appendChild(row);
-      });
-    };
+        document.getElementById('logoutButton').addEventListener('click', () => {
+            localStorage.removeItem('token');
+            window.location.href = '/login.html';
+        });
 
-    const updateTicketStatus = async (id, status) => {
-      await fetch(`/agent/tickets/${id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({ status })
-      });
-      loadTickets();
-    };
+        async function fetchTickets() {
+            try {
+                const response = await axios.get('/agent/tickets', {
+                    headers: {
+                        Authorization: `Bearer ${token}`
+                    }
+                });
+                const tickets = response.data;
+                ticketList.innerHTML = '';
+                tickets.forEach(ticket => {
+                    const li = document.createElement('li');
+                    li.className = 'list-group-item';
+                    li.textContent = `${ticket.from}: ${ticket.message}`;
+                    li.addEventListener('click', () => openChat(ticket));
+                    ticketList.appendChild(li);
+                });
+            } catch (error) {
+                console.error('Error al obtener los tickets:', error);
+            }
+        }
 
-    loadTickets();
-    setInterval(loadTickets, 5000);  // Refrescar cada 5 segundos
-  </script>
+        function openChat(ticket) {
+            chatBox.style.display = 'flex';
+            chatMessages.innerHTML = '';
+            chatMessages.dataset.ticketId = ticket._id;
+            appendMessage(ticket.message, 'client');
+        }
+
+        function appendMessage(message, sender) {
+            const div = document.createElement('div');
+            div.textContent = message;
+            div.className = sender === 'client' ? 'text-left' : 'text-right';
+            chatMessages.appendChild(div);
+        }
+
+        sendButton.addEventListener('click', async () => {
+            const message = chatInput.value;
+            if (!message) return;
+
+            const ticketId = chatMessages.dataset.ticketId;
+            try {
+                await axios.post('/agent/tickets/' + ticketId + '/message', { message }, {
+                    headers: {
+                        Authorization: `Bearer ${token}`
+                    }
+                });
+                appendMessage(message, 'agent');
+                chatInput.value = '';
+            } catch (error) {
+                console.error('Error al enviar el mensaje:', error);
+            }
+        });
+
+        uploadButton.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        fileInput.addEventListener('change', async (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const ticketId = chatMessages.dataset.ticketId;
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await axios.post('/agent/tickets/' + ticketId + '/media', formData, {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        'Content-Type': 'multipart/form-data'
+                    }
+                });
+                appendMessage(`[${file.type.split('/')[0].toUpperCase()}] ${file.name}`, 'agent');
+            } catch (error) {
+                console.error('Error al enviar el archivo:', error);
+            }
+        });
+
+        fetchTickets();
+    </script>
 </body>
 </html>
-ss

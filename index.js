@@ -4,10 +4,12 @@ const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const qrcode = require('qrcode-terminal');
-const { Client, LocalAuth } = require('whatsapp-web.js');
+const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
 const User = require('./models/user');
 const Ticket = require('./models/ticket');
 const adminRoutes = require('./routes/admin');
+const fs = require('fs');
+const multer = require('multer');
 
 const app = express();
 app.use(bodyParser.json());
@@ -155,6 +157,53 @@ app.put('/agent/tickets/:id', authMiddleware, agentMiddleware, async (req, res) 
     res.status(200).json({ message: 'Ticket actualizado' });
   } catch (error) {
     res.status(500).json({ error: 'Error al actualizar el ticket' });
+  }
+});
+
+// Configuración de multer para la subida de archivos
+const upload = multer({ dest: 'uploads/' });
+
+// Ruta para enviar mensajes desde el agente al cliente
+app.post('/agent/tickets/:id/message', authMiddleware, agentMiddleware, async (req, res) => {
+  const { id } = req.params;
+  const { message } = req.body;
+
+  try {
+    const ticket = await Ticket.findById(id);
+    if (!ticket) {
+      return res.status(404).json({ error: 'Ticket no encontrado' });
+    }
+
+    const chatId = ticket.from; // ID de chat del cliente
+    await client.sendMessage(chatId, message);
+
+    res.status(200).json({ message: 'Mensaje enviado' });
+  } catch (error) {
+    res.status(500).json({ error: 'Error al enviar el mensaje' });
+  }
+});
+
+// Ruta para enviar archivos multimedia desde el agente al cliente
+app.post('/agent/tickets/:id/media', authMiddleware, agentMiddleware, upload.single('file'), async (req, res) => {
+  const { id } = req.params;
+  const file = req.file;
+
+  try {
+    const ticket = await Ticket.findById(id);
+    if (!ticket) {
+      return res.status(404).json({ error: 'Ticket no encontrado' });
+    }
+
+    const media = MessageMedia.fromFilePath(file.path);
+    const chatId = ticket.from; // ID de chat del cliente
+    await client.sendMessage(chatId, media);
+
+    // Elimina el archivo temporal después de enviarlo
+    fs.unlinkSync(file.path);
+
+    res.status(200).json({ message: 'Archivo enviado' });
+  } catch (error) {
+    res.status(500).json({ error: 'Error al enviar el archivo' });
   }
 });
 

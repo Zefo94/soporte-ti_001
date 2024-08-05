@@ -1,43 +1,24 @@
 const express = require('express');
-const router = express.Router();
+const bcrypt = require('bcryptjs');
 const User = require('../models/user');
 const Ticket = require('../models/ticket');
+const router = express.Router();
 
-// Ruta para crear un nuevo agente o administrador
-router.post('/users', async (req, res) => {
-  const { username, password, role } = req.body;
+// Crear agente
+router.post('/create-agent', async (req, res) => {
+  const { username, password } = req.body;
+
   try {
-    const user = new User({ username, password, role });
-    await user.save();
-    res.status(201).json({ message: 'Usuario creado' });
+    const hashedPassword = await bcrypt.hash(password, 8);
+    const agent = new User({ username, password: hashedPassword, role: 'agent' });
+    await agent.save();
+    res.status(201).json({ message: 'Agente creado exitosamente' });
   } catch (error) {
-    console.error('Error al crear usuario:', error);
-    res.status(400).json({ error: 'Error al crear el usuario' });
+    res.status(500).json({ error: 'Error al crear el agente' });
   }
 });
 
-// Ruta para obtener todos los agentes
-router.get('/users', async (req, res) => {
-  try {
-    const users = await User.find({ role: 'agent' });
-    res.status(200).json(users);
-  } catch (error) {
-    res.status(500).json({ error: 'Error al obtener los usuarios' });
-  }
-});
-
-// Ruta para eliminar un agente
-router.delete('/users/:id', async (req, res) => {
-  const { id } = req.params;
-  try {
-    await User.findByIdAndDelete(id);
-    res.status(200).json({ message: 'Usuario eliminado' });
-  } catch (error) {
-    res.status(500).json({ error: 'Error al eliminar el usuario' });
-  }
-});
-
-// Ruta para obtener todos los tickets
+// Obtener todos los tickets
 router.get('/tickets', async (req, res) => {
   try {
     const tickets = await Ticket.find();
@@ -47,10 +28,10 @@ router.get('/tickets', async (req, res) => {
   }
 });
 
-// Ruta para asignar un ticket a un agente
-router.put('/tickets/:id/assign', async (req, res) => {
+// Actualizar el estado del ticket
+router.put('/tickets/:id', async (req, res) => {
   const { id } = req.params;
-  const { assignedTo } = req.body;
+  const { status } = req.body;
 
   try {
     const ticket = await Ticket.findById(id);
@@ -58,12 +39,12 @@ router.put('/tickets/:id/assign', async (req, res) => {
       return res.status(404).json({ error: 'Ticket no encontrado' });
     }
 
-    ticket.assignedTo = assignedTo;
+    ticket.status = status;
     await ticket.save();
 
-    res.status(200).json({ message: 'Ticket asignado' });
+    res.status(200).json({ message: 'Estado del ticket actualizado' });
   } catch (error) {
-    res.status(500).json({ error: 'Error al asignar el ticket' });
+    res.status(500).json({ error: 'Error al actualizar el estado del ticket' });
   }
 });
 
