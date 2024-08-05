@@ -75,12 +75,12 @@
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <script src="/socket.io/socket.io.js"></script>
     <script>
+        const socket = io();
+
         const token = localStorage.getItem('token');
         if (!token) {
             window.location.href = '/login.html';
         }
-
-        const socket = io();
 
         const ticketList = document.getElementById('ticketList');
         const chatBox = document.getElementById('chatBox');
@@ -173,12 +173,17 @@
             }
         });
 
-        socket.on('message', (data) => {
-            const { from, message } = data;
-            const ticketId = chatMessages.dataset.ticketId;
-            const ticketFrom = ticketList.querySelector(`[data-from="${from}"]`);
-            if (ticketFrom && ticketFrom.dataset.ticketId === ticketId) {
-                appendMessage(message, 'client');
+        socket.on('newTicket', ticket => {
+            const li = document.createElement('li');
+            li.className = 'list-group-item';
+            li.textContent = `${ticket.from}: ${ticket.message}`;
+            li.addEventListener('click', () => openChat(ticket));
+            ticketList.appendChild(li);
+        });
+
+        socket.on('updateTicket', ticket => {
+            if (chatMessages.dataset.ticketId === ticket._id) {
+                appendMessage(ticket.message, 'client');
             }
         });
 

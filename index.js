@@ -1,4 +1,3 @@
-// index.js
 const express = require('express');
 const bodyParser = require('body-parser');
 const mongoose = require('mongoose');
@@ -11,8 +10,8 @@ const Ticket = require('./models/ticket');
 const adminRoutes = require('./routes/admin');
 const fs = require('fs');
 const multer = require('multer');
-const socketIo = require('socket.io');
 const http = require('http');
+const socketIo = require('socket.io');
 
 const app = express();
 const server = http.createServer(app);
@@ -50,32 +49,33 @@ client.on('message', async msg => {
   console.log('MESSAGE RECEIVED', msg);
 
   const { from, body, hasMedia } = msg;
-  let messageContent = body;
-
-  if (hasMedia) {
-    const media = await msg.downloadMedia();
-    messageContent = media;
-  }
-
   try {
-    let existingTicket = await Ticket.findOne({ from });
+    // Encuentra un agente disponible
+    const agent = await User.findOne({ role: 'agent' });
 
-    if (existingTicket) {
-      existingTicket.message = messageContent;
-      await existingTicket.save();
-      io.emit('message', { from, message: messageContent });
-    } else {
-      const agent = await User.findOne({ role: 'agent' });
-      if (!agent) {
-        console.log('No se encontró un agente disponible');
-        return; // Si no hay agentes disponibles, no se crea el ticket
-      }
-      const newTicket = new Ticket({ from, message: messageContent, assignedTo: agent._id });
+    // Si tiene medios, descarga y guarda el archivo
+    if (hasMedia) {
+      const media = await msg.downloadMedia();
+      const buffer = Buffer.from(media.data, 'base64');
+      const filePath = `./uploads/${msg.id.id}.${media.mimetype.split('/')[1]}`;
+      fs.writeFileSync(filePath, buffer);
+
+      const newTicket = new Ticket({ from, message: '', media: filePath, assignedTo: agent._id });
       await newTicket.save();
-      io.emit('message', { from, message: messageContent });
-    }
+      io.emit('newTicket', newTicket);
+    } else {
+      const existingTicket = await Ticket.findOne({ from, status: 'open' });
 
-    console.log('Ticket actualizado y mensaje enviado a la interfaz del agente');
+      if (existingTicket) {
+        existingTicket.message = body;
+        await existingTicket.save();
+        io.emit('updateTicket', existingTicket);
+      } else {
+        const newTicket = new Ticket({ from, message: body, assignedTo: agent._id });
+        await newTicket.save();
+        io.emit('newTicket', newTicket);
+      }
+    }
   } catch (error) {
     console.error('Error al crear el ticket:', error);
   }
@@ -221,14 +221,6 @@ app.post('/agent/tickets/:id/media', authMiddleware, agentMiddleware, upload.sin
   } catch (error) {
     res.status(500).json({ error: 'Error al enviar el archivo' });
   }
-});
-
-io.on('connection', (socket) => {
-  console.log('Nuevo cliente conectado');
-
-  socket.on('disconnect', () => {
-    console.log('Cliente desconectado');
-  });
 });
 
 server.listen(3000, () => {
