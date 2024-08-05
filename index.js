@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const qrcode = require('qrcode-terminal');
+const { Server } = require('socket.io');
 const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
 const User = require('./models/user');
 const Ticket = require('./models/ticket');
@@ -13,13 +14,14 @@ const multer = require('multer');
 const path = require('path');
 
 const app = express();
+const server = require('http').createServer(app);
+const io = new Server(server);
+
 app.use(bodyParser.json());
 app.use(express.static('public'));
 
-// JWT secret key
 const JWT_SECRET = 'tu_clave_secreta';
 
-// Connect to MongoDB
 mongoose.connect('mongodb://localhost:27017/soporte-ti', {
   useNewUrlParser: true,
   useUnifiedTopology: true,
@@ -29,7 +31,6 @@ mongoose.connect('mongodb://localhost:27017/soporte-ti', {
   console.error('Error al conectar a MongoDB:', error);
 });
 
-// WhatsApp Web client configuration
 const client = new Client({
   authStrategy: new LocalAuth()
 });
@@ -42,7 +43,6 @@ client.on('ready', () => {
   console.log('WhatsApp Web client is ready!');
 });
 
-// Handle incoming messages from WhatsApp
 client.on('message', async msg => {
   console.log('MESSAGE RECEIVED', msg);
 
@@ -62,6 +62,7 @@ client.on('message', async msg => {
         existingTicket.mediaType = media.mimetype;
         existingTicket.mediaSize = media.filesize;
         await existingTicket.save();
+        io.emit('newMessage', { ticketId: existingTicket._id, message: mediaPath, mediaType: media.mimetype });
       } else {
         const newTicket = new Ticket({
           from,
@@ -72,11 +73,13 @@ client.on('message', async msg => {
           mediaSize: media.filesize,
         });
         await newTicket.save();
+        io.emit('newTicket', newTicket);
       }
     } else {
       if (existingTicket) {
         existingTicket.message += `\n${body}`;
         await existingTicket.save();
+        io.emit('newMessage', { ticketId: existingTicket._id, message: body });
       } else {
         const newTicket = new Ticket({
           from,
@@ -84,6 +87,7 @@ client.on('message', async msg => {
           assignedTo: agent._id,
         });
         await newTicket.save();
+        io.emit('newTicket', newTicket);
       }
     }
 
@@ -95,7 +99,6 @@ client.on('message', async msg => {
 
 client.initialize();
 
-// User registration route
 app.post('/register', async (req, res) => {
   const { username, password, role } = req.body;
   try {
@@ -108,7 +111,6 @@ app.post('/register', async (req, res) => {
   }
 });
 
-// User login route
 app.post('/login', async (req, res) => {
   const { username, password } = req.body;
   try {
@@ -127,7 +129,6 @@ app.post('/login', async (req, res) => {
   }
 });
 
-// Authentication middleware
 const authMiddleware = (req, res, next) => {
   const token = req.header('Authorization').replace('Bearer ', '');
   try {
@@ -139,7 +140,6 @@ const authMiddleware = (req, res, next) => {
   }
 };
 
-// Admin authorization middleware
 const adminMiddleware = (req, res, next) => {
   if (req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Acceso denegado' });
@@ -147,7 +147,6 @@ const adminMiddleware = (req, res, next) => {
   next();
 };
 
-// Agent authorization middleware
 const agentMiddleware = (req, res, next) => {
   if (req.user.role !== 'agent') {
     return res.status(403).json({ error: 'Acceso denegado' });
@@ -155,10 +154,8 @@ const agentMiddleware = (req, res, next) => {
   next();
 };
 
-// Admin routes
 app.use('/admin', authMiddleware, adminMiddleware, adminRoutes);
 
-// Agent: Get assigned tickets
 app.get('/agent/tickets', authMiddleware, agentMiddleware, async (req, res) => {
   try {
     const tickets = await Ticket.find({ assignedTo: req.user.id, status: 'open' });
@@ -168,7 +165,6 @@ app.get('/agent/tickets', authMiddleware, agentMiddleware, async (req, res) => {
   }
 });
 
-// Agent: Send message
 app.post('/agent/tickets/:id/message', authMiddleware, agentMiddleware, async (req, res) => {
   const { id } = req.params;
   const { message } = req.body;
@@ -191,8 +187,18 @@ app.post('/agent/tickets/:id/message', authMiddleware, agentMiddleware, async (r
   }
 });
 
-// Agent: Send media
-app.post('/agent/tickets/:id/media', authMiddleware, agentMiddleware, multer().single('file'), async (req, res) => {
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, 'public/uploads/');
+  },
+  filename: (req, file, cb) => {
+    cb(null, `upload_${Date.now()}_${file.originalname}`);
+  }
+});
+
+const upload = multer({ storage });
+
+app.post('/agent/tickets/:id/media', authMiddleware, agentMiddleware, upload.single('file'), async (req, res) => {
   const { id } = req.params;
   const file = req.file;
 
@@ -206,7 +212,7 @@ app.post('/agent/tickets/:id/media', authMiddleware, agentMiddleware, multer().s
     const chatId = ticket.from;
     await client.sendMessage(chatId, media);
 
-    ticket.message += `\n[MEDIA] ${file.originalname}`;
+    ticket.message += `\n[MEDIA] ${file.filename}`;
     ticket.mediaPath = `/uploads/${file.filename}`;
     ticket.mediaType = file.mimetype;
     ticket.mediaSize = file.size;
@@ -218,7 +224,6 @@ app.post('/agent/tickets/:id/media', authMiddleware, agentMiddleware, multer().s
   }
 });
 
-// Agent: Close ticket
 app.post('/agent/tickets/:id/close', authMiddleware, agentMiddleware, async (req, res) => {
   const { id } = req.params;
   const { solution } = req.body;
@@ -233,12 +238,14 @@ app.post('/agent/tickets/:id/close', authMiddleware, agentMiddleware, async (req
     ticket.solution = solution;
     await ticket.save();
 
+    io.emit('ticketClosed', { ticketId: id });
+
     res.status(200).json({ message: 'Ticket cerrado' });
   } catch (error) {
     res.status(500).json({ error: 'Error al cerrar el ticket' });
   }
 });
 
-app.listen(3000, () => {
+server.listen(3000, () => {
   console.log('Servidor escuchando en puerto 3000');
 });

@@ -5,9 +5,17 @@ const ticketSchema = new mongoose.Schema({
   message: { type: String, required: true },
   assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   status: { type: String, default: 'open' },
-  createdAt: { type: Date, default: Date.now },
-  mediaType: { type: String, required: false }, // Tipo de medio (opcional)
-  mediaPath: { type: String, required: false }  // Ruta del medio (opcional)
+  solution: String,
+  mediaPath: String,
+  mediaType: String,
+  mediaSize: Number,
+  history: [{
+    message: String,
+    mediaPath: String,
+    mediaType: String,
+    mediaSize: Number,
+  }],
+  createdAt: { type: Date, default: Date.now }
 });
 
 module.exports = mongoose.model('Ticket', ticketSchema);
