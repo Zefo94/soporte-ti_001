@@ -46,6 +46,20 @@
             color: white;
             border: none;
         }
+        .chat-input .file-label {
+            cursor: pointer;
+            display: inline-block;
+            padding: 10px;
+            background-color: #28a745;
+            color: white
+            border: none;
+        }
+        .chat-input .file-input {
+            display: none;
+        }
+        .modal img {
+            max-width: 100%;
+        }
     </style>
 </head>
 <body>
@@ -64,19 +78,34 @@
                 <div class="chat-messages" id="chatMessages"></div>
                 <div class="chat-input">
                     <input type="text" id="chatInput" placeholder="Escribe un mensaje...">
-                    <input type="file" id="fileInput" style="display: none;">
+                    <input type="file" id="fileInput" class="file-input">
+                    <label for="fileInput" class="file-label">📎</label>
                     <button id="sendButton">Enviar</button>
-                    <button id="uploadButton">📎</button>
+                </div>
+                <button id="closeTicketButton" class="btn btn-danger mt-2">Cerrar Ticket</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for displaying images -->
+    <div class="modal fade" id="imageModal" tabindex="-1" aria-labelledby="imageModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="imageModalLabel">Imagen</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <img id="modalImage" src="" alt="Imagen">
                 </div>
             </div>
         </div>
     </div>
+
     <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
-    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        const socket = io();
-
         const token = localStorage.getItem('token');
         if (!token) {
             window.location.href = '/login.html';
@@ -88,7 +117,7 @@
         const chatInput = document.getElementById('chatInput');
         const sendButton = document.getElementById('sendButton');
         const fileInput = document.getElementById('fileInput');
-        const uploadButton = document.getElementById('uploadButton');
+        const closeTicketButton = document.getElementById('closeTicketButton');
 
         document.getElementById('logoutButton').addEventListener('click', () => {
             localStorage.removeItem('token');
@@ -107,7 +136,7 @@
                 tickets.forEach(ticket => {
                     const li = document.createElement('li');
                     li.className = 'list-group-item';
-                    li.textContent = `${ticket.from}: ${ticket.message}`;
+                    li.textContent = `${ticket.from}: ${ticket.message.split('\n').pop()}`;
                     li.addEventListener('click', () => openChat(ticket));
                     ticketList.appendChild(li);
                 });
@@ -118,16 +147,23 @@
 
         function openChat(ticket) {
             chatBox.style.display = 'flex';
-            chatMessages.innerHTML = '';
+            chatMessages.innerHTML = ticket.message.split('\n').map(msg => {
+                if (msg.startsWith('[IMAGE]')) {
+                    const imgSrc = msg.replace('[IMAGE]', '').trim();
+                    return `<img src="${imgSrc}" alt="Imagen" style="max-width: 100px; cursor: pointer;" onclick="openImage('${imgSrc}')">`;
+                } else if (msg.startsWith('[MEDIA]')) {
+                    const mediaSrc = msg.replace('[MEDIA]', '').trim();
+                    return `<a href="${mediaSrc}" download>Descargar archivo</a>`;
+                } else {
+                    return `<div>${msg}</div>`;
+                }
+            }).join('');
             chatMessages.dataset.ticketId = ticket._id;
-            appendMessage(ticket.message, 'client');
         }
 
-        function appendMessage(message, sender) {
-            const div = document.createElement('div');
-            div.textContent = message;
-            div.className = sender === 'client' ? 'text-left' : 'text-right';
-            chatMessages.appendChild(div);
+        function openImage(src) {
+            $('#modalImage').attr('src', src);
+            $('#imageModal').modal('show');
         }
 
         sendButton.addEventListener('click', async () => {
@@ -136,20 +172,16 @@
 
             const ticketId = chatMessages.dataset.ticketId;
             try {
-                await axios.post('/agent/tickets/' + ticketId + '/message', { message }, {
+                await axios.post(`/agent/tickets/${ticketId}/message`, { message }, {
                     headers: {
                         Authorization: `Bearer ${token}`
                     }
                 });
-                appendMessage(message, 'agent');
+                chatMessages.innerHTML += `<div>${message}</div>`;
                 chatInput.value = '';
             } catch (error) {
                 console.error('Error al enviar el mensaje:', error);
             }
-        });
-
-        uploadButton.addEventListener('click', () => {
-            fileInput.click();
         });
 
         fileInput.addEventListener('change', async (event) => {
@@ -161,29 +193,38 @@
             formData.append('file', file);
 
             try {
-                const response = await axios.post('/agent/tickets/' + ticketId + '/media', formData, {
+                const response = await axios.post(`/agent/tickets/${ticketId}/media`, formData, {
                     headers: {
                         Authorization: `Bearer ${token}`,
                         'Content-Type': 'multipart/form-data'
                     }
                 });
-                appendMessage(`[${file.type.split('/')[0].toUpperCase()}] ${file.name}`, 'agent');
+                const mediaSrc = `/uploads/${response.data.filename}`;
+                if (file.type.startsWith('image/')) {
+                    chatMessages.innerHTML += `<img src="${mediaSrc}" alt="Imagen" style="max-width: 100px; cursor: pointer;" onclick="openImage('${mediaSrc}')">`;
+                } else {
+                    chatMessages.innerHTML += `<a href="${mediaSrc}" download>Descargar archivo</a>`;
+                }
             } catch (error) {
                 console.error('Error al enviar el archivo:', error);
             }
         });
 
-        socket.on('newTicket', ticket => {
-            const li = document.createElement('li');
-            li.className = 'list-group-item';
-            li.textContent = `${ticket.from}: ${ticket.message}`;
-            li.addEventListener('click', () => openChat(ticket));
-            ticketList.appendChild(li);
-        });
+        closeTicketButton.addEventListener('click', async () => {
+            const ticketId = chatMessages.dataset.ticketId;
+            const solution = prompt('Por favor, ingrese la solución para este ticket:');
+            if (!solution) return;
 
-        socket.on('updateTicket', ticket => {
-            if (chatMessages.dataset.ticketId === ticket._id) {
-                appendMessage(ticket.message, 'client');
+            try {
+                await axios.post(`/agent/tickets/${ticketId}/close`, { solution }, {
+                    headers: {
+                        Authorization: `Bearer ${token}`
+                    }
+                });
+                fetchTickets();
+                chatBox.style.display = 'none';
+            } catch (error) {
+                console.error('Error al cerrar el ticket:', error);
             }
         });
 
